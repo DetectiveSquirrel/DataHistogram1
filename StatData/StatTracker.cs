@@ -214,7 +214,11 @@ public class StatTracker
 
                 var data = dataItem.GetDataValues();
                 var (min, max) = dataItem.GetMinMax();
-                var overlayText = $"Max: {max}\nMin: {min}";
+                var overlayText = dataItem.PlotLineMinMaxText ? $"Max: {max}\nMin: {min}" : "";
+
+                var plotLineDisplayText = dataItem.PlotLineDisplayText
+                    ? $"{dataItem.DisplayText}\n[{dataItem.GetLastValue()}]##StatPlot-{dataItem.Key}"
+                    : $"##StatPlot-{dataItem.Key}";
 
                 if (data.Length <= 0)
                 {
@@ -227,7 +231,7 @@ public class StatTracker
                 }
 
                 ImGui.PlotLines(
-                    $"{dataItem.DisplayText}\n[{dataItem.GetLastValue()}]##StatPlot-{dataItem.Key}",
+                    plotLineDisplayText,
                     ref data[0],
                     data.Length,
                     0,

@@ -113,7 +113,7 @@ public class StatTrackerMenu(StatTracker tracker)
                 var refDisplayWidth = statItem.DisplaySize;
                 ImGui.SetNextItemWidth(availableWidth);
 
-                if (ImGui.SliderFloat2($"Width##{parentIndex}_{statIndex}", ref refDisplayWidth, 0, 1800))
+                if (ImGui.SliderFloat2($"Width | Height##{parentIndex}_{statIndex}", ref refDisplayWidth, 0, 1800))
                 {
                     statItem.DisplaySize = refDisplayWidth;
                 }
@@ -137,6 +137,20 @@ public class StatTrackerMenu(StatTracker tracker)
                 if (ImGui.Checkbox($"Should Display Flag##{parentIndex}_{statIndex}", ref refShouldDisplay))
                 {
                     statItem.ShouldDisplay = refShouldDisplay;
+                }
+
+                var refPlotLineDisplayText = statItem.PlotLineDisplayText;
+
+                if (ImGui.Checkbox($"Show Display Text##{parentIndex}_{statIndex}", ref refPlotLineDisplayText))
+                {
+                    statItem.PlotLineDisplayText = refPlotLineDisplayText;
+                }
+
+                var refPlotLineMinMaxText = statItem.PlotLineMinMaxText;
+
+                if (ImGui.Checkbox($"Show Min-Max PlotLine Text##{parentIndex}_{statIndex}", ref refPlotLineMinMaxText))
+                {
+                    statItem.PlotLineMinMaxText = refPlotLineMinMaxText;
                 }
 
                 var refCustomStyling = statItem.CustomStyling;

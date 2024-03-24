@@ -18,6 +18,8 @@ public class StatDataItem(string key, string displayText, Vector2 size, bool isC
     public bool ShouldUpdate { get; set; } = true;
     public bool ShouldDisplay { get; set; } = true;
     public bool CustomStyling { get; set; } = false;
+    public bool PlotLineMinMaxText { get; set; } = true;
+    public bool PlotLineDisplayText { get; set; } = true;
 
     public Color PlotLineColor { get; set; } = ImGui.GetStyle().Colors[(int)ImGuiCol.PlotLines].ToSharpColor();
     public Color PlotBackgroundColor { get; set; } = ImGui.GetStyle().Colors[(int)ImGuiCol.FrameBg].ToSharpColor();
