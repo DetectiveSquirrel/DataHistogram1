@@ -5,18 +5,18 @@ using ImGuiNET;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
+using Vector2 = System.Numerics.Vector2;
 
 namespace DataHistogram1.StatData;
 
 public class StatTracker
 {
     private static readonly DataHistogram1 Main = DataHistogram1.Main;
-
-    private static readonly Dictionary<string, GameStat> CachedStats = [];
-
+    private static readonly Dictionary<string, GameStat> CachedStats = new();
     private DateTime lastUpdateTime = DateTime.Now;
     public List<StatDataParent> statDataParents = Main.Settings.statDataParents;
+
+    #region Standard Stat Methods
 
     public void AddFilterParent(string parentMenu)
     {
@@ -27,7 +27,7 @@ public class StatTracker
     {
         var now = DateTime.Now;
 
-        if ((DateTime.Now - lastUpdateTime).Milliseconds >= Main.Settings.UpdateFrequency)
+        if ((now - lastUpdateTime).Milliseconds >= Main.Settings.UpdateFrequency)
         {
             UpdateStats();
             lastUpdateTime = now;
@@ -39,7 +39,8 @@ public class StatTracker
     private void UpdateStats()
     {
         UpdateStatsFromComponent();
-        FetchAndAddCustomStats();
+        FetchAndAddCustomModules();
+        //RighteousFireModule();
     }
 
     private void UpdateStatsFromComponent()
@@ -51,8 +52,6 @@ public class StatTracker
             return;
         }
 
-        var playerStats = player.Stats;
-
         foreach (var dataItem in statDataParents.SelectMany(
                      parent => parent.Items.Where(x => !x.IsCustom && x.ShouldUpdate)
                  ))
@@ -62,70 +61,8 @@ public class StatTracker
                 continue;
             }
 
-            dataItem.AddDataPoint(DateTime.Now, playerStats[statEnum]);
+            dataItem.AddDataPoint(DateTime.Now, player.Stats[statEnum]);
         }
-    }
-
-    private void FetchAndAddCustomStats()
-    {
-        var player = Main.GameController.Game.IngameState.Data.LocalPlayer;
-        player.TryGetComponent<Life>(out var lifeComponent);
-
-        if (lifeComponent == null)
-        {
-            return;
-        }
-
-        AddLifeManaCustomModule(lifeComponent, "Life - Hardcoded Module", "playerLife", "Life + ES");
-        AddLifeManaCustomModule(lifeComponent, "Mana - Hardcoded Module", "playerMana", "Mana");
-    }
-
-    private void AddLifeManaCustomModule(Life lifeComponent, string parentModule, string key, string displayText)
-    {
-        var customParent = FindOrCreateParent(parentModule);
-
-        var statValue = key switch
-        {
-            "playerLife" => lifeComponent.CurHP + lifeComponent.CurES,
-            "playerMana" => lifeComponent.CurMana,
-            _ => 0
-        };
-
-        var customDataItem = FindOrCreateItem(customParent, key, displayText, Vector2.Zero, true);
-
-        if (customDataItem?.ShouldUpdate ?? false)
-        {
-            customDataItem.AddDataPoint(DateTime.Now, statValue);
-        }
-    }
-
-    private static StatDataItem FindOrCreateItem(StatDataParent parent, string statKey, string displayText,
-        Vector2 size, bool isCustom)
-    {
-        var dataItem = parent?.Items.FirstOrDefault(item => item.Key == statKey);
-
-        if (dataItem != null)
-        {
-            return dataItem;
-        }
-
-        dataItem = new StatDataItem(statKey, displayText, size, isCustom);
-        parent?.AddItem(dataItem);
-        return dataItem;
-    }
-
-    private StatDataParent FindOrCreateParent(string parentName)
-    {
-        var parent = statDataParents.FirstOrDefault(p => p.ParentName == parentName);
-
-        if (parent != null)
-        {
-            return parent;
-        }
-
-        parent = new StatDataParent(parentName);
-        statDataParents.Add(parent);
-        return parent;
     }
 
     private void RemoveOldData(DateTime currentTime)
@@ -148,6 +85,183 @@ public class StatTracker
 
         CachedStats[statString] = statEnum;
         return true;
+    }
+
+    private StatDataParent FindOrCreateParent(string parentName)
+    {
+        var parent = statDataParents.FirstOrDefault(p => p.ParentName == parentName);
+
+        if (parent == null)
+        {
+            parent = new StatDataParent(parentName);
+            statDataParents.Add(parent);
+        }
+
+        return parent;
+    }
+
+    #endregion
+
+    #region Custom Module Methods
+
+    public bool TryGetValue(Dictionary<GameStat, int> statDictionary, GameStat stat, out int value,
+        int defaultValue = 0)
+    {
+        if (statDictionary.TryGetValue(stat, out value))
+        {
+            return true;
+        }
+
+        value = defaultValue;
+        return false;
+    }
+
+    private void FetchAndAddCustomModules()
+    {
+        var player = Main.GameController.Game.IngameState.Data.LocalPlayer;
+
+        if (player.TryGetComponent<Life>(out var lifeComponent))
+        {
+            AddLifeComponentModule(lifeComponent, "Life - Hardcoded Module", "playerLife", "Life + ES");
+            AddLifeComponentModule(lifeComponent, "Mana - Hardcoded Module", "playerMana", "Mana");
+        }
+    }
+
+    private void RighteousFireModule()
+    {
+        var player = Main.GameController.Game.IngameState.Data.LocalPlayer;
+
+        // Initialize stat values with default of 0 if they do not exist
+        TryGetValue(player.Stats, GameStat.TotalNonlethalFireDamageTakenPerMinute, out var finalDegenCalculation, 0);
+        TryGetValue(player.Stats, GameStat.TotalDamageTakenPerMinuteToLife, out var finalOtherSourceDegen, 0);
+        TryGetValue(player.Stats, GameStat.TotalLifeRecoveryPerMinuteFromRegeneration, out var finalLifeRegen, 0);
+
+        // Calculate the final combined degeneration and total regeneration
+        var finalCombinedDegen = -finalDegenCalculation / 60 + -finalOtherSourceDegen / 60;
+        var finalTotalRegen = finalLifeRegen / 60 + -finalDegenCalculation / 60 + -finalOtherSourceDegen / 60;
+        AddCustomModule("Regeneration Stats", "totalDegen", "Total Combined Degen", finalCombinedDegen);
+        AddCustomModule("Regeneration Stats", "totalRegen", "Total Regeneration", finalTotalRegen);
+    }
+
+    private void AddCustomModule(string parentModule, string key, string displayText, int value)
+    {
+        var customParent = FindOrCreateParent(parentModule);
+        var customDataItem = FindOrCreateItem(customParent, key, displayText, Vector2.Zero, true);
+
+        if (customDataItem?.ShouldUpdate ?? false)
+        {
+            customDataItem.AddDataPoint(DateTime.Now, value);
+        }
+    }
+
+    private void AddLifeComponentModule(Life lifeComponent, string parentModule, string key, string displayText)
+    {
+        var statValue = key switch
+        {
+            "playerLife" => lifeComponent.CurHP + lifeComponent.CurES,
+            "playerMana" => lifeComponent.CurMana,
+            _ => 0
+        };
+
+        var customParent = FindOrCreateParent(parentModule);
+        var customDataItem = FindOrCreateItem(customParent, key, displayText, Vector2.Zero, true);
+
+        if (customDataItem?.ShouldUpdate ?? false)
+        {
+            customDataItem.AddDataPoint(DateTime.Now, statValue);
+        }
+    }
+
+    #endregion
+
+    #region Utility Methods
+
+    private static StatDataItem FindOrCreateItem(StatDataParent parent, string statKey, string displayText,
+        Vector2 size, bool isCustom)
+    {
+        var dataItem = parent?.Items.FirstOrDefault(item => item.Key == statKey) ??
+                       new StatDataItem(statKey, displayText, size, isCustom);
+
+        if (!parent.Items.Contains(dataItem))
+        {
+            parent.AddItem(dataItem);
+        }
+
+        return dataItem;
+    }
+
+    public static void SetCustomStyling(StatDataItem itemData)
+    {
+        if (!itemData.CustomStyling)
+        {
+            return;
+        }
+
+        ImGui.PushStyleColor(ImGuiCol.PlotLines, itemData.PlotLineColor.ToImguiVec4());
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, itemData.PlotBackgroundColor.ToImguiVec4());
+        ImGui.PushStyleColor(ImGuiCol.Text, itemData.TextColor.ToImguiVec4());
+    }
+
+    public static void PopStyleColors(int count)
+    {
+        ImGui.PopStyleColor(count);
+    }
+
+    #endregion
+
+    #region Display Methods
+
+    public void DisplayStatsOverTime()
+    {
+        foreach (var parent in statDataParents)
+        {
+            ImGui.Begin($"{parent.ParentName}##ParentStatWindow-{parent.ParentName}", GetWindowFlags());
+
+            foreach (var dataItem in parent.Items)
+            {
+                if (!dataItem.ShouldDisplay)
+                {
+                    continue;
+                }
+
+                var data = dataItem.GetDataValues();
+
+                if (data.Length <= 0)
+                {
+                    continue;
+                }
+
+                var (min, max) = dataItem.GetMinMax();
+                var overlayText = dataItem.PlotLineMinMaxText ? $"Max: {max}\nMin: {min}" : "";
+
+                var plotLineDisplayText = dataItem.PlotLineDisplayText
+                    ? $"{dataItem.DisplayText}\n[{dataItem.GetLastValue()}]##StatPlot-{dataItem.Key}"
+                    : $"##StatPlot-{dataItem.Key}";
+
+                if (dataItem.CustomStyling)
+                {
+                    SetCustomStyling(dataItem);
+                }
+
+                ImGui.PlotLines(
+                    plotLineDisplayText,
+                    ref data[0],
+                    data.Length,
+                    0,
+                    overlayText,
+                    float.MaxValue,
+                    float.MaxValue,
+                    dataItem.DisplaySize
+                );
+
+                if (dataItem.CustomStyling)
+                {
+                    PopStyleColors(3);
+                }
+            }
+
+            ImGui.End();
+        }
     }
 
     private static ImGuiWindowFlags GetWindowFlags()
@@ -182,72 +296,5 @@ public class StatTracker
         return flags;
     }
 
-    public static void SetCustomStyling(StatDataItem itemData)
-    {
-        if (!itemData.CustomStyling)
-        {
-            return;
-        }
-
-        ImGui.PushStyleColor(ImGuiCol.PlotLines, itemData.PlotLineColor.ToImguiVec4());
-        ImGui.PushStyleColor(ImGuiCol.FrameBg, itemData.PlotBackgroundColor.ToImguiVec4());
-        ImGui.PushStyleColor(ImGuiCol.Text, itemData.TextColor.ToImguiVec4());
-    }
-
-    public static void PopStyleColors(int count)
-    {
-        ImGui.PopStyleColor(count);
-    }
-
-    public void DisplayStatsOverTime()
-    {
-        foreach (var parent in statDataParents)
-        {
-            ImGui.Begin($"{parent.ParentName}##ParentStatWindow-{parent.ParentName}", GetWindowFlags());
-
-            foreach (var dataItem in parent.Items)
-            {
-                if (!dataItem.ShouldDisplay)
-                {
-                    continue;
-                }
-
-                var data = dataItem.GetDataValues();
-                var (min, max) = dataItem.GetMinMax();
-                var overlayText = dataItem.PlotLineMinMaxText ? $"Max: {max}\nMin: {min}" : "";
-
-                var plotLineDisplayText = dataItem.PlotLineDisplayText
-                    ? $"{dataItem.DisplayText}\n[{dataItem.GetLastValue()}]##StatPlot-{dataItem.Key}"
-                    : $"##StatPlot-{dataItem.Key}";
-
-                if (data.Length <= 0)
-                {
-                    continue;
-                }
-
-                if (dataItem.CustomStyling)
-                {
-                    SetCustomStyling(dataItem);
-                }
-
-                ImGui.PlotLines(
-                    plotLineDisplayText,
-                    ref data[0],
-                    data.Length,
-                    0,
-                    overlayText,
-                    float.MaxValue,
-                    float.MaxValue,
-                    dataItem.DisplaySize
-                );
-
-                if (dataItem.CustomStyling)
-                {
-                    PopStyleColors(3);
-                }
-            }
-
-            ImGui.EndChild();
-        }
-    }
+    #endregion
 }
