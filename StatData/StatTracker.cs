@@ -122,7 +122,7 @@ public class StatTracker
 
         if (player.TryGetComponent<Life>(out var lifeComponent))
         {
-            AddLifeComponentModule(lifeComponent, "Life - Hardcoded Module", "playerLife", "Life + ES");
+            AddLifeComponentModule(lifeComponent, "Life - Hardcoded Module", "playerLife", "Life");
             AddLifeComponentModule(lifeComponent, "Mana - Hardcoded Module", "playerMana", "Mana");
         }
     }
@@ -158,7 +158,7 @@ public class StatTracker
     {
         var statValue = key switch
         {
-            "playerLife" => lifeComponent.CurHP + lifeComponent.CurES,
+            "playerLife" => lifeComponent.CurHP,
             "playerMana" => lifeComponent.CurMana,
             _ => 0
         };
