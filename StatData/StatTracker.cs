@@ -215,6 +215,11 @@ public class StatTracker
     {
         foreach (var parent in statDataParents)
         {
+            if (parent != null && parent.Items.Count == 0 || !parent.Items.Any(x => x.ShouldDisplay))
+            {
+                continue;
+            }
+
             ImGui.Begin($"{parent.ParentName}##ParentStatWindow-{parent.ParentName}", GetWindowFlags());
 
             foreach (var dataItem in parent.Items)
